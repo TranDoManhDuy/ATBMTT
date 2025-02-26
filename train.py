@@ -1,75 +1,62 @@
+import model
+import loss
 import torch
+import implement_SHA1
 import torch.optim as optim
-import tqdm
-from torch.utils.data import DataLoader
-from model import ModelAI
-from dataset import MyDataset
-from loss import LossFunction
 
-seed = 100
-torch.manual_seed(seed)
+firstSubfix = "ChosenPrefixCollision.pdf"
+subfix = b""
+with open(firstSubfix, 'rb') as f:
+    subfix = f.read(800)  
 
-LEARNING_RATE = 0.001
-DEVICE = "cpu"
-BATCH_SIZE = 16
-WEIGHT_DECAY = 0
-EPOCHES = 100
-NUM_WORKS = 0
-PIN_MEMORY = True
-LOAD_MODEL = False
-LOAD_MODEL_FILE = "model.pth.tar"
+prefix1Data = "random_1.pdf"
+prefix1 = b""
+with open(prefix1Data, 'rb') as f:
+    prefix1 = f.read(800)  
 
-def train_fn(train_loader, model, optimizer, loss_fn):
-    loop = tqdm.tqdm(train_loader, leave = True)
-    mean_loss = []
+prefix2Data = "random_2.pdf"
+prefix2 = b""  # Đảm bảo prefix2 tồn tại
+with open(prefix2Data, 'rb') as f:
+    prefix2 = f.read(800)  # Đọc đúng vào prefix2
+
+data1 = [float(x) for x in list(prefix1 + subfix)]
+data2 = [float(x) for x in list(prefix2 + subfix)]
+
+data1 = torch.tensor(data1)
+data2 = torch.tensor(data2)
+
+modelAI1 = model.ModelAI(in_channels=1, dataSize=40, layers=128)
+modelAI2 = model.ModelAI(in_channels=1, dataSize=40, layers=128)
+
+loss_fn = loss.LossFunction()
+
+out1 = modelAI1(data1.reshape(40, 40).unsqueeze(0).unsqueeze(0))
+out2 = modelAI2(data2.reshape(40, 40).unsqueeze(0).unsqueeze(0))
+
+optimizer1 = optim.Adam(modelAI1.parameters(), lr = 0.01, weight_decay=0)
+optimizer2 = optim.Adam(modelAI2.parameters(), lr = 0.01, weight_decay=0)
+
+for _ in range(10):
+    # luot 1, modelAI1
+    loss_1 = loss_fn(out1, out2)
+    optimizer1.zero_grad()
+    loss_1.backward(retain_graph=True)
+    optimizer1.step()
     
-    for batch_idx, (x, y) in enumerate(loop):
-        # x, y là dữ liệu đầu vào của ta x = text_matrix, y = [prediction]
-        # vd: x = torch.randn(2, 1, 13, 13)
-        x, y = x.to(DEVICE), y.to(DEVICE)
-        out = model(x)
-        loss = loss_fn(out, y)
-        print(f"loss: {loss.item()}")
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    out1 = modelAI1(data1.reshape(40, 40).unsqueeze(0).unsqueeze(0))
+    if out1.tolist() == out2.tolist():
+        print("Phat hien va cham")
+    else:
+        # luot 2 modelAI2
+        loss_2 = loss_fn(out2, out1)
+        optimizer2.zero_grad()
+        loss_2.backward(retain_graph=True)
+        optimizer2.step()
         
-        loop.set_postfix(loss = loss.item())
-        
-def main():
-    model = ModelAI(in_channels=1, dataSize = 4, layers = 128)
-    optimizer = optim.Adam(
-        model.parameters(), lr = LEARNING_RATE, weight_decay=WEIGHT_DECAY
-    )
-    loss_fn = LossFunction()
-    if LOAD_MODEL:
-        pass
-    
-    train_dataset = MyDataset(
-        "dataset_train.txt",
-        out_size=1
-    )
-    test_dataset = MyDataset(
-        "dataset_test.txt",
-        out_size=1
-    )
-    
-    train_loader = DataLoader(
-        dataset=train_dataset,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        num_workers=NUM_WORKS,
-        pin_memory=PIN_MEMORY,
-        drop_last=False
-    )
-    test_loader = DataLoader(
-        dataset=test_dataset,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        num_workers=NUM_WORKS,
-        pin_memory=PIN_MEMORY,
-        drop_last=False
-    )
-    for epoch in range(EPOCHES):
-        train_fn(train_loader, model, optimizer, loss_fn)
-main()
+        out2 = modelAI2(data2.reshape(40, 40).unsqueeze(0).unsqueeze(0))
+        if out1.tolist() == out2.tolist():
+            print("Phat hien va cham")
+    print(f"Khoang cach: {torch.sum(torch.abs(out1 - out2))}")
+
+out1 = modelAI1(data1.reshape(40, 40).unsqueeze(0).unsqueeze(0))
+out2 = modelAI2(data2.reshape(40, 40).unsqueeze(0).unsqueeze(0))
