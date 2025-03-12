@@ -71,4 +71,4 @@ class ModelAI(nn.Module):
 
 model = ModelAI(in_channels=1, dataSize=40, layers=128)
 total_params = sum(p.numel() for p in model.parameters())
-print(f"Tổng số tham số của mô hình: {total_params}")
+print(f"Tổng số tham số của mô hình: {total_params:,}")
